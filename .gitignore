@@ -1,0 +1,9 @@
+/build/
+/.vs/
+/CMakeUserPresets.json
+*.user
+*.suo
+*.pdb
+*.ilk
+*.obj
+*.exe

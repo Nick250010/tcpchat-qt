@@ -1,0 +1,57 @@
+name: Build and test TCPChat Qt
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 6 (MSVC 2022 x64)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtbase
+          cache: true
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Package portable apps
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist/client, dist/server | Out-Null
+          Copy-Item build/Release/tcpchat_client.exe dist/client/
+          Copy-Item build/Release/tcpchat_server.exe dist/server/
+          & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --release --compiler-runtime dist/client/tcpchat_client.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:QT_ROOT_DIR/bin/windeployqt.exe" --release --compiler-runtime --no-plugins dist/server/tcpchat_server.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path dist/client -DestinationPath tcpchat-client-windows.zip -Force
+          Compress-Archive -Path dist/server -DestinationPath tcpchat-server-windows.zip -Force
+
+      - name: Upload client package
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcpchat-client-windows
+          path: tcpchat-client-windows.zip
+
+      - name: Upload server package
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcpchat-server-windows
+          path: tcpchat-server-windows.zip
